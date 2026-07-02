@@ -1,0 +1,6 @@
+transformers
+torch
+pillow
+ollama
+pyttsx3
+flask
