@@ -15,3 +15,12 @@ There's a possibility to have stories with different flavors.
 2. run ```pip install -r requirements.txt``` to downloaded dependencies 
 3. Install Ollama from official [website](https://ollama.com/)
 4. Install Llama 3.2 by running ```ollama pull llama3.2```
+
+## Running the app
+
+After setting up the application run the program using:
+
+```python app.py```
+
+This will start a local web server with a default address:
+http://127.0.0.1:5000.
