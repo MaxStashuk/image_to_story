@@ -1,3 +1,4 @@
+# app.py
 import os
 import time
 from flask import Flask, request, jsonify, render_template_string
@@ -14,7 +15,7 @@ vision_engine = VisionAnalyzer()
 story_engine = Storyteller()
 audio_engine = AudioGenerator()
 
-# Single-page HTML interface template embedded directly for ease of file deployment
+# Single-page HTML interface template with custom progress tracking bars
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -39,10 +40,23 @@ HTML_TEMPLATE = """
         button:hover { background: #2563eb; }
         button:disabled { background: #94a3b8; cursor: not-allowed; }
 
+        /* Progress Bar Styling */
+        #loading-container { display: none; margin: 25px 0; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .progress-group { margin-bottom: 15px; }
+        .progress-group:last-child { margin-bottom: 0; }
+        .progress-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+        .progress-track { background: #e2e8f0; border-radius: 10px; height: 12px; overflow: hidden; position: relative; }
+        .progress-fill { background: #3b82f6; height: 100%; width: 0%; transition: width 0.4s ease; }
+        .progress-fill.active { background: repeating-linear-gradient(45deg, #3b82f6, #3b82f6 10px, #60a5fa 10px, #60a5fa 20px); background-size: 28px 28px; animation: progress-bar-stripes 1s linear infinite; }
+
+        @keyframes progress-bar-stripes {
+            0% { background-position: 0 0; }
+            100% { background-position: 28px 0; }
+        }
+
         .result-box { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; display: none; }
         audio { width: 100%; margin: 15px 0; }
         .story-text { background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #3b82f6; white-space: pre-wrap; font-style: italic; max-height: 300px; overflow-y: auto; }
-        #loading { display: none; text-align: center; font-weight: bold; color: #3b82f6; margin: 15px 0; }
     </style>
 </head>
 <body>
@@ -77,7 +91,21 @@ HTML_TEMPLATE = """
     </div>
 
     <button id="generate-btn" disabled>Generate Story & Audio</button>
-    <div id="loading">Processing pipeline locally (Vision ➔ Text ➔ Audio)...</div>
+
+    <div id="loading-container">
+        <div class="progress-group">
+            <div class="progress-label"><span id="lbl-vision">1. Vision Recognition</span><span id="pct-vision">0%</span></div>
+            <div class="progress-track"><div id="bar-vision" class="progress-fill"></div></div>
+        </div>
+        <div class="progress-group">
+            <div class="progress-label"><span id="lbl-text">2. Creative Text Writing</span><span id="pct-text">0%</span></div>
+            <div class="progress-track"><div id="bar-text" class="progress-fill"></div></div>
+        </div>
+        <div class="progress-group">
+            <div class="progress-label"><span id="lbl-audio">3. Text-to-Speech Generation</span><span id="pct-audio">0%</span></div>
+            <div class="progress-track"><div id="bar-audio" class="progress-fill"></div></div>
+        </div>
+    </div>
 
     <div class="result-box" id="result-box">
         <h3>Image Description Extracted:</h3>
@@ -97,15 +125,12 @@ HTML_TEMPLATE = """
     const preview = document.getElementById('preview');
     const dropText = document.getElementById('drop-text');
     const generateBtn = document.getElementById('generate-btn');
-    const loading = document.getElementById('loading');
+    const loadingContainer = document.getElementById('loading-container');
     const resultBox = document.getElementById('result-box');
 
     let selectedFile = null;
 
-    // Trigger File input on click
     dropZone.addEventListener('click', () => fileInput.click());
-
-    // Drag-and-drop event handlers
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('hover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
     dropZone.addEventListener('drop', (e) => {
@@ -132,6 +157,25 @@ HTML_TEMPLATE = """
         generateBtn.disabled = false;
     }
 
+    // Helper functions to manage visual states of progress tracks
+    function updateBar(barId, pctId, percentage, isActive=false) {
+        const bar = document.getElementById(barId);
+        const text = document.getElementById(pctId);
+        bar.style.width = percentage + '%';
+        text.innerText = percentage + '%';
+        if (isActive) {
+            bar.classList.add('active');
+        } else {
+            bar.classList.remove('active');
+        }
+    }
+
+    function resetBars() {
+        updateBar('bar-vision', 'pct-vision', 0);
+        updateBar('bar-text', 'pct-text', 0);
+        updateBar('bar-audio', 'pct-audio', 0);
+    }
+
     // Pipeline Execution
     generateBtn.addEventListener('click', async () => {
         if(!selectedFile) return;
@@ -141,31 +185,59 @@ HTML_TEMPLATE = """
         formData.append('flavor', document.getElementById('flavor').value);
         formData.append('length', document.getElementById('length').value);
 
-        // UI states
-        loading.style.display = 'block';
+        // Reset UI states
+        resetBars();
+        loadingContainer.style.display = 'block';
         resultBox.style.display = 'none';
         generateBtn.disabled = true;
 
+        // Phase 1 Simulation Start: Vision Engine is usually fast (1-3s)
+        updateBar('bar-vision', 'pct-vision', 45, true);
+        let currentVision = 45;
+        const visionInterval = setInterval(() => {
+            if (currentVision < 90) {
+                currentVision += 5;
+                updateBar('bar-vision', 'pct-vision', currentVision, true);
+            }
+        }, 300);
+
         try {
             const response = await fetch('/generate', { method: 'POST', body: formData });
+            clearInterval(visionInterval);
+
             const data = await response.json();
 
             if(data.success) {
+                // Complete all stages sequentially to mimic continuous success
+                updateBar('bar-vision', 'pct-vision', 100, false);
+
+                // Animate Text Engine completing
+                updateBar('bar-text', 'pct-text', 50, true);
+                await new Promise(r => setTimeout(r, 600));
+                updateBar('bar-text', 'pct-text', 100, false);
+
+                // Animate Audio Engine completing
+                updateBar('bar-audio', 'pct-audio', 60, true);
+                await new Promise(r => setTimeout(r, 600));
+                updateBar('bar-audio', 'pct-audio', 100, false);
+
+                // Render Final Output Objects
                 document.getElementById('result-caption').innerText = data.caption;
                 document.getElementById('story-text').innerText = data.story;
 
-                // Set audio source with a unique timestamp to force browser cache bypass
                 const player = document.getElementById('audio-player');
                 player.src = `/${data.audio_url}?t=${new Date().getTime()}`;
 
                 resultBox.style.display = 'block';
             } else {
                 alert('Pipeline Error: ' + data.error);
+                resetBars();
             }
         } catch (err) {
+            clearInterval(visionInterval);
             alert('Communication Error: ' + err);
+            resetBars();
         } finally {
-            loading.style.display = 'none';
             generateBtn.disabled = false;
         }
     });
@@ -183,7 +255,6 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate():
     try:
-        # Get UI Inputs
         image_file = request.files.get('image')
         flavor = request.form.get('flavor')
         length_setting = request.form.get('length')
@@ -191,7 +262,6 @@ def generate():
         if not image_file:
             return jsonify({"success": False, "error": "No image uploaded"}), 400
 
-        # Save image to public path
         image_path = os.path.join(Config.UPLOAD_FOLDER, "temp_input.jpg")
         image_file.save(image_path)
 
@@ -205,7 +275,6 @@ def generate():
         audio_filename = f"output_narrative.wav"
         audio_engine.text_to_file(story, audio_filename)
 
-        # Public URL path for the HTML audio player
         audio_url = f"static/audio/{audio_filename}"
 
         return jsonify({
@@ -220,6 +289,5 @@ def generate():
 
 
 if __name__ == '__main__':
-    # Start web app locally
-    print("starting app on http://127.0.0.1:5000")
+    print("Starting local demonstration web app on http://127.0.0.1:5000")
     app.run(debug=True, port=5000)
